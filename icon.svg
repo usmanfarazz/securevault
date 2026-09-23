@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="0" fill="url(#g)"/>
+  <!-- padlock, centered within the maskable safe zone -->
+  <g fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round">
+    <path d="M176 232 v-40 a80 80 0 0 1 160 0 v40"/>
+  </g>
+  <rect x="156" y="232" width="200" height="150" rx="24" fill="#ffffff"/>
+  <circle cx="256" cy="300" r="20" fill="#3a4a86"/>
+  <rect x="246" y="300" width="20" height="44" rx="8" fill="#3a4a86"/>
+</svg>
