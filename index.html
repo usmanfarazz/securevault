@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SecureVault — Password Manager</title>
+<meta name="description" content="Offline, encrypted password manager and strength checker. Your data never leaves your device." />
+<meta name="theme-color" content="#0b0f17" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#131a26; --panel2:#0f1520; --line:#243044;
+    --txt:#e7edf5; --muted:#93a1b5; --accent:#4f8cff; --accent2:#2b64d6;
+    --ok:#2ecc71; --warn:#f5a623; --bad:#ff5c6c; --fair:#f7c948;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--txt); line-height:1.5;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap{max-width:520px; margin:0 auto; padding:16px}
+  header{display:flex; align-items:center; gap:10px; padding:8px 0 14px}
+  header .logo{width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#4f8cff,#7a5cff); display:grid; place-items:center; font-size:18px}
+  header h1{font-size:19px; margin:0; letter-spacing:.2px}
+  header .sub{font-size:11px; color:var(--muted); margin-top:1px}
+  .lockbtn{margin-left:auto; background:var(--panel); border:1px solid var(--line); color:var(--muted); padding:8px 12px; border-radius:10px; font-size:13px; cursor:pointer}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px}
+  .card h2{font-size:14px; margin:0 0 12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.6px}
+  label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px}
+  input,textarea{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    padding:12px 12px; border-radius:10px; font-size:15px; font-family:inherit; outline:none;
+  }
+  input:focus,textarea:focus{border-color:var(--accent)}
+  textarea{resize:vertical; min-height:60px}
+  .row{display:flex; gap:8px}
+  .row > *{flex:1}
+  button.primary{background:var(--accent); border:none; color:#fff; padding:12px 14px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; width:100%}
+  button.primary:active{background:var(--accent2)}
+  button.ghost{background:var(--panel2); border:1px solid var(--line); color:var(--txt); padding:11px 12px; border-radius:10px; font-size:14px; cursor:pointer}
+  .field{position:relative; margin-bottom:12px}
+  .eye{position:absolute; right:8px; top:29px; background:none; border:none; color:var(--muted); font-size:17px; cursor:pointer; padding:4px}
+  .hint{font-size:11px; color:var(--muted); margin-top:6px}
+  .banner{font-size:12px; color:var(--muted); background:var(--panel2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; margin-bottom:14px; display:flex; gap:8px; align-items:flex-start}
+  .banner b{color:var(--txt)}
+  /* strength meter */
+  .meter{height:8px; background:var(--panel2); border-radius:99px; overflow:hidden; margin:8px 0 6px}
+  .meter > i{display:block; height:100%; width:0; transition:width .25s, background .25s; border-radius:99px}
+  .stlabel{font-size:13px; font-weight:600}
+  .stats{display:flex; gap:8px; margin-top:10px}
+  .stat{flex:1; background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:8px; text-align:center}
+  .stat .k{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px}
+  .stat .v{font-size:14px; font-weight:600; margin-top:2px}
+  ul.issues{list-style:none; padding:0; margin:8px 0 0; font-size:12.5px}
+  ul.issues li{padding:3px 0; color:var(--muted)}
+  /* vault entries */
+  .entry{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px}
+  .entry .top{display:flex; align-items:center; gap:8px}
+  .entry .title{font-weight:600; font-size:15px}
+  .entry .user{font-size:12px; color:var(--muted); margin-top:1px; word-break:break-all}
+  .entry .pw{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-top:8px; display:flex; align-items:center; gap:8px; word-break:break-all}
+  .entry .pw span{flex:1}
+  .entry .acts{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap}
+  .entry .acts button{font-size:12px; padding:7px 10px}
+  .del{color:var(--bad)!important; border-color:#3a2530!important}
+  .empty{text-align:center; color:var(--muted); font-size:13px; padding:18px 0}
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1b2536; border:1px solid var(--line); color:var(--txt); padding:10px 16px; border-radius:99px; font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s, bottom .2s; z-index:50}
+  .toast.show{opacity:1; bottom:34px}
+  .hidden{display:none!important}
+  .search{margin-bottom:12px}
+  footer{text-align:center; color:var(--muted); font-size:11px; padding:20px 0 8px}
+  footer a{color:var(--accent); text-decoration:none}
+  .genrow{display:flex; gap:8px; align-items:center; margin-top:8px}
+  .genrow input[type=range]{flex:1}
+  .lock-screen{max-width:400px; margin:8vh auto 0}
+  .lock-screen .logo-big{width:64px; height:64px; border-radius:18px; background:linear-gradient(135deg,#4f8cff,#7a5cff); display:grid; place-items:center; font-size:32px; margin:0 auto 16px}
+  .lock-screen h1{text-align:center; font-size:22px; margin:0 0 4px}
+  .lock-screen p.tag{text-align:center; color:var(--muted); font-size:13px; margin:0 0 22px}
+  .err{color:var(--bad); font-size:12.5px; margin-top:8px; min-height:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= LOCK / SETUP SCREEN ================= -->
+  <section id="lockScreen" class="lock-screen">
+    <div class="logo-big">🔐</div>
+    <h1>SecureVault</h1>
+    <p class="tag" id="lockTag">Enter your master password to unlock</p>
+
+    <div class="card">
+      <div class="field">
+        <label id="mpLabel" for="mp">Master password</label>
+        <input id="mp" type="password" autocomplete="off" placeholder="Your master password" />
+        <button class="eye" data-for="mp" type="button">👁</button>
+      </div>
+      <div id="mp2Field" class="field hidden">
+        <label for="mp2">Confirm master password</label>
+        <input id="mp2" type="password" autocomplete="off" placeholder="Type it again" />
+      </div>
+      <button id="unlockBtn" class="primary">Unlock</button>
+      <div id="lockErr" class="err"></div>
+      <p class="hint" id="lockHint">Your vault is encrypted with this password. If you forget it, your data cannot be recovered — there is no reset. That is what keeps it secure.</p>
+    </div>
+
+    <div class="banner">
+      <span>🛡️</span>
+      <span><b>100% offline.</b> Everything is encrypted and stored only on this device. No password ever leaves this app or reaches any server.</span>
+    </div>
+  </section>
+
+  <!-- ================= MAIN APP ================= -->
+  <section id="app" class="hidden">
+    <header>
+      <div class="logo">🔐</div>
+      <div>
+        <h1>SecureVault</h1>
+        <div class="sub">Offline &amp; encrypted</div>
+      </div>
+      <button id="lockNow" class="lockbtn">Lock</button>
+    </header>
+
+    <!-- Strength checker + add form -->
+    <div class="card">
+      <h2>Check &amp; save a password</h2>
+      <div class="field">
+        <label for="label">Name (e.g. Instagram, Email)</label>
+        <input id="label" type="text" placeholder="What is this password for?" />
+      </div>
+      <div class="field">
+        <label for="username">Username / email (optional)</label>
+        <input id="username" type="text" autocomplete="off" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label for="pw">Password</label>
+        <input id="pw" type="password" autocomplete="off" placeholder="Type a password to check its strength" />
+        <button class="eye" data-for="pw" type="button">👁</button>
+      </div>
+
+      <div class="meter"><i id="meterFill"></i></div>
+      <div class="stlabel" id="stLabel">Strength: —</div>
+      <div class="stats">
+        <div class="stat"><div class="k">Entropy</div><div class="v" id="stEntropy">—</div></div>
+        <div class="stat"><div class="k">Crack time</div><div class="v" id="stCrack">—</div></div>
+        <div class="stat"><div class="k">Char pool</div><div class="v" id="stPool">—</div></div>
+      </div>
+      <ul class="issues" id="issues"></ul>
+
+      <div class="genrow">
+        <span class="hint" style="margin:0">Generate:</span>
+        <input id="genLen" type="range" min="8" max="32" value="16" />
+        <span class="hint" id="genLenVal" style="margin:0">16</span>
+        <button class="ghost" id="genBtn" type="button">🎲 Make one</button>
+      </div>
+
+      <div style="height:12px"></div>
+      <button id="saveBtn" class="primary">Save to vault</button>
+      <p class="hint">Tip: don't paste your real, live password just to test it — type a similar one. Save it here only if you want this app to remember it for you.</p>
+    </div>
+
+    <!-- Vault -->
+    <div class="card">
+      <h2>My vault (<span id="count">0</span>)</h2>
+      <input id="search" class="search" type="text" placeholder="Search…" />
+      <div id="vaultList"></div>
+    </div>
+
+    <footer>
+      SecureVault · your data is encrypted with AES-256 and stays on this device.<br/>
+      Built by Usman Faraz
+    </footer>
+  </section>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =========================================================================
+   SecureVault — offline encrypted password manager
+   Crypto: PBKDF2-SHA256 (310k iterations) -> AES-256-GCM, all in the browser.
+   Nothing is ever sent over the network. Data lives only in localStorage,
+   and only as encrypted blobs.
+   ========================================================================= */
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const LS_KEY = 'securevault.v1';
+const PBKDF2_ITER = 310000;          // OWASP-recommended minimum for PBKDF2-SHA256
+const AUTOLOCK_MS = 90 * 1000;       // lock after 90s hidden/idle
+
+let cryptoKey = null;                // derived AES key, kept only in memory
+let vault = [];                      // decrypted entries, only while unlocked
+let store = null;                    // { salt, check } read from localStorage
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+const rand = n => crypto.getRandomValues(new Uint8Array(n));
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 1600);
+}
+function readStore(){
+  try{ const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function writeStore(obj){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }
+  catch(e){ toast('Could not save — storage blocked'); }
+}
+
+/* ---------- key derivation & encryption ---------- */
+async function deriveKey(masterPassword, salt){
+  const base = await crypto.subtle.importKey('raw', enc.encode(masterPassword), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:PBKDF2_ITER, hash:'SHA-256' },
+    base,
+    { name:'AES-GCM', length:256 },
+    false,
+    ['encrypt','decrypt']
+  );
+}
+async function encryptJSON(obj){
+  const iv = rand(12);
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, cryptoKey, enc.encode(JSON.stringify(obj)));
+  return { iv:b64(iv), ct:b64(ct) };
+}
+async function decryptJSON(blob){
+  const pt = await crypto.subtle.decrypt(
+    { name:'AES-GCM', iv:unb64(blob.iv) }, cryptoKey, unb64(blob.ct)
+  );
+  return JSON.parse(dec.decode(pt));
+}
+
+/* ---------- persist the whole vault as one encrypted blob ---------- */
+async function saveVault(){
+  const enc = await encryptJSON(vault);
+  writeStore({ v:1, kdf:{ salt: store.salt, iter: PBKDF2_ITER }, check: store.check, data: enc });
+}
+
+/* =========================================================================
+   Password strength analysis (same idea as the CLI/web checker, improved)
+   ========================================================================= */
+const COMMON = new Set(['password','123456','12345678','qwerty','abc123','111111','123123',
+  '123456789','password1','1234567','iloveyou','admin','welcome','monkey','letmein','dragon',
+  'football','000000','qwerty123','pakistan','sunshine','princess']);
+
+function analyze(pw){
+  if(!pw) return null;
+  let pool = 0;
+  if(/[a-z]/.test(pw)) pool += 26;
+  if(/[A-Z]/.test(pw)) pool += 26;
+  if(/[0-9]/.test(pw)) pool += 10;
+  if(/[^A-Za-z0-9]/.test(pw)) pool += 33;
+  const entropy = pool ? Math.round(pw.length * Math.log2(pool)) : 0;
+
+  const issues = [];
+  if(pw.length < 12) issues.push('❌ Too short — use at least 12 characters');
+  if(!/[A-Z]/.test(pw)) issues.push('➕ Add an uppercase letter');
+  if(!/[0-9]/.test(pw)) issues.push('➕ Add a number');
+  if(!/[^A-Za-z0-9]/.test(pw)) issues.push('➕ Add a symbol (!@#…)');
+  if(/(.)\1\1/.test(pw)) issues.push('⚠️ Repeated characters (aaa)');
+  if(/(012|123|234|345|456|567|678|789|abc|qwe|asd|zxc)/i.test(pw)) issues.push('⚠️ Contains a common sequence');
+  const isCommon = COMMON.has(pw.toLowerCase());
+  if(isCommon) issues.push('🚫 This is a very common password');
+
+  // score 0..4
+  let score;
+  if(isCommon) score = 0;
+  else if(entropy < 28) score = 0;
+  else if(entropy < 40) score = 1;
+  else if(entropy < 60) score = 2;
+  else if(entropy < 80) score = 3;
+  else score = 4;
+
+  // crack time at 1e10 guesses/sec (offline GPU attack)
+  const seconds = Math.pow(2, entropy) / 1e10;
+  return { entropy, pool, issues, score, crack: humanTime(seconds) };
+}
+function humanTime(s){
+  if(s < 1) return 'instant';
+  const u = [['year',31557600],['day',86400],['hour',3600],['minute',60],['second',1]];
+  for(const [name,secs] of u){
+    if(s >= secs){ const n = s/secs; return (n>=1000 ? Math.round(n).toLocaleString() : Math.round(n)) + ' ' + name + (Math.round(n)!==1?'s':''); }
+  }
+  return 'instant';
+}
+const LABELS = ['Very weak','Weak','Fair','Strong','Very strong'];
+const COLORS = ['#ff5c6c','#f5a623','#f7c948','#7ed957','#2ecc71'];
+
+function renderStrength(pw){
+  const r = analyze(pw);
+  const fill = $('#meterFill');
+  if(!r){
+    fill.style.width='0'; $('#stLabel').textContent='Strength: —';
+    $('#stEntropy').textContent='—'; $('#stCrack').textContent='—'; $('#stPool').textContent='—';
+    $('#issues').innerHTML=''; return;
+  }
+  fill.style.width = ((r.score+1)/5*100)+'%';
+  fill.style.background = COLORS[r.score];
+  $('#stLabel').textContent = 'Strength: ' + LABELS[r.score];
+  $('#stLabel').style.color = COLORS[r.score];
+  $('#stEntropy').textContent = r.entropy + ' bits';
+  $('#stCrack').textContent = r.crack;
+  $('#stPool').textContent = r.pool;
+  $('#issues').innerHTML = r.issues.length ? r.issues.map(i=>`<li>${i}</li>`).join('') : '<li>✅ Looks strong</li>';
+}
+
+/* ---------- password generator ---------- */
+function generate(len){
+  const sets = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+';
+  let out=''; const arr = rand(len);
+  for(let i=0;i<len;i++) out += sets[arr[i] % sets.length];
+  return out;
+}
+
+/* =========================================================================
+   Vault UI
+   ========================================================================= */
+function renderVault(filter=''){
+  const list = $('#vaultList'); const f = filter.trim().toLowerCase();
+  const items = vault.filter(e => !f || (e.label+ ' ' +(e.username||'')).toLowerCase().includes(f));
+  $('#count').textContent = vault.length;
+  if(!items.length){
+    list.innerHTML = `<div class="empty">${vault.length? 'No match.' : 'Nothing saved yet. Check a password above and tap “Save to vault”.'}</div>`;
+    return;
+  }
+  list.innerHTML = items.map(e => `
+    <div class="entry" data-id="${e.id}">
+      <div class="top">
+        <div>
+          <div class="title">${esc(e.label)}</div>
+          ${e.username? `<div class="user">${esc(e.username)}</div>`:''}
+        </div>
+      </div>
+      <div class="pw"><span data-pw="${e.id}">••••••••</span></div>
+      <div class="acts">
+        <button class="ghost" data-act="reveal" data-id="${e.id}">👁 Show</button>
+        <button class="ghost" data-act="copy" data-id="${e.id}">📋 Copy</button>
+        <button class="ghost del" data-act="del" data-id="${e.id}">🗑 Delete</button>
+      </div>
+    </div>`).join('');
+}
+function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* =========================================================================
+   Auth flow
+   ========================================================================= */
+function showLock(setup){
+  $('#app').classList.add('hidden');
+  $('#lockScreen').classList.remove('hidden');
+  $('#mp').value=''; $('#mp2').value=''; $('#lockErr').textContent='';
+  if(setup){
+    $('#lockTag').textContent = 'Create a master password to protect your vault';
+    $('#mpLabel').textContent = 'Create master password';
+    $('#mp2Field').classList.remove('hidden');
+    $('#unlockBtn').textContent = 'Create vault';
+  } else {
+    $('#lockTag').textContent = 'Enter your master password to unlock';
+    $('#mpLabel').textContent = 'Master password';
+    $('#mp2Field').classList.add('hidden');
+    $('#unlockBtn').textContent = 'Unlock';
+  }
+  setTimeout(()=>$('#mp').focus(), 100);
+}
+function lock(){
+  cryptoKey = null; vault = [];
+  showLock(!readStore());
+}
+async function handleUnlock(){
+  const pw = $('#mp').value;
+  const err = $('#lockErr'); err.textContent='';
+  if(pw.length < 8){ err.textContent='Use at least 8 characters.'; return; }
+
+  const existing = readStore();
+  if(!existing){
+    // ---- first run: create vault ----
+    if(pw !== $('#mp2').value){ err.textContent='The two passwords do not match.'; return; }
+    const salt = rand(16);
+    cryptoKey = await deriveKey(pw, salt);
+    store = { salt:b64(salt) };
+    // a "check" blob lets us verify the master password on next unlock
+    store.check = await encryptJSON({ ok:true });
+    vault = [];
+    await saveVault();
+    enterApp();
+    toast('Vault created 🔐');
+  } else {
+    // ---- returning: verify password ----
+    try{
+      const salt = unb64(existing.kdf.salt);
+      cryptoKey = await deriveKey(pw, salt);
+      store = { salt: existing.kdf.salt, check: existing.check };
+      await decryptJSON(existing.check);          // throws if wrong password
+      vault = existing.data ? await decryptJSON(existing.data) : [];
+      enterApp();
+    }catch(e){
+      cryptoKey=null;
+      err.textContent='Wrong master password.';
+    }
+  }
+}
+function enterApp(){
+  $('#lockScreen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  renderVault();
+  resetIdle();
+}
+
+/* auto-lock */
+let idleTimer=null;
+function resetIdle(){ clearTimeout(idleTimer); if(cryptoKey) idleTimer=setTimeout(lock, AUTOLOCK_MS); }
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) lock(); });
+['click','keydown','input','touchstart'].forEach(ev=>document.addEventListener(ev, resetIdle, {passive:true}));
+
+/* =========================================================================
+   Wire up events
+   ========================================================================= */
+document.addEventListener('click', async (e)=>{
+  const t = e.target;
+
+  if(t.classList.contains('eye')){
+    const inp = $('#'+t.dataset.for);
+    inp.type = inp.type==='password' ? 'text' : 'password';
+    return;
+  }
+  if(t.id==='unlockBtn'){ handleUnlock(); return; }
+  if(t.id==='lockNow'){ lock(); return; }
+  if(t.id==='genBtn'){
+    const g = generate(parseInt($('#genLen').value,10));
+    $('#pw').value = g; $('#pw').type='text'; renderStrength(g); return;
+  }
+  if(t.id==='saveBtn'){ await saveEntry(); return; }
+
+  // vault actions
+  const act = t.dataset.act; const id = t.dataset.id;
+  if(!act) return;
+  const entry = vault.find(x=>x.id===id); if(!entry) return;
+  if(act==='reveal'){
+    const span = document.querySelector(`[data-pw="${id}"]`);
+    if(span.dataset.shown){ span.textContent='••••••••'; delete span.dataset.shown; t.textContent='👁 Show'; }
+    else { span.textContent=entry.password; span.dataset.shown='1'; t.textContent='🙈 Hide'; }
+  }
+  if(act==='copy'){
+    try{ await navigator.clipboard.writeText(entry.password); toast('Copied ✔ (clears in 20s)');
+      setTimeout(()=>navigator.clipboard.writeText('').catch(()=>{}), 20000);
+    }catch(err){ toast('Copy not allowed'); }
+  }
+  if(act==='del'){
+    if(confirm(`Delete “${entry.label}”? This cannot be undone.`)){
+      vault = vault.filter(x=>x.id!==id); await saveVault(); renderVault($('#search').value); toast('Deleted');
+    }
+  }
+});
+
+async function saveEntry(){
+  const label = $('#label').value.trim();
+  const username = $('#username').value.trim();
+  const password = $('#pw').value;
+  if(!label){ toast('Add a name first'); $('#label').focus(); return; }
+  if(!password){ toast('Enter a password'); $('#pw').focus(); return; }
+  vault.unshift({ id: b64(rand(8)), label, username, password, ts: Date.now() });
+  await saveVault();
+  $('#label').value=''; $('#username').value=''; $('#pw').value=''; $('#pw').type='password';
+  renderStrength(''); renderVault($('#search').value);
+  toast('Saved 🔐');
+}
+
+$('#pw').addEventListener('input', e=>renderStrength(e.target.value));
+$('#genLen').addEventListener('input', e=>$('#genLenVal').textContent=e.target.value);
+$('#search').addEventListener('input', e=>renderVault(e.target.value));
+$('#mp').addEventListener('keydown', e=>{ if(e.key==='Enter') handleUnlock(); });
+$('#mp2').addEventListener('keydown', e=>{ if(e.key==='Enter') handleUnlock(); });
+
+/* boot */
+lock();
+
+/* register service worker for offline / installable PWA */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
