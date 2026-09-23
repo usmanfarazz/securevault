@@ -32,11 +32,20 @@
   .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px}
   .card h2{font-size:14px; margin:0 0 12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.6px}
   label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px}
-  input,textarea{
+  input,textarea,select{
     width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--txt);
     padding:12px 12px; border-radius:10px; font-size:15px; font-family:inherit; outline:none;
   }
-  input:focus,textarea:focus{border-color:var(--accent)}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  /* category chips */
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px}
+  .chip{font-size:12px; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer}
+  .chip.active{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .tag{display:inline-block; font-size:10px; padding:2px 8px; border-radius:99px; background:var(--bg); border:1px solid var(--line); color:var(--muted); margin-left:6px; vertical-align:middle}
+  .star{background:none; border:none; font-size:16px; cursor:pointer; padding:2px 4px; line-height:1}
+  .gen-opts{display:flex; gap:14px; margin-top:8px; font-size:12px; color:var(--muted)}
+  .gen-opts label{display:flex; align-items:center; gap:5px; margin:0; cursor:pointer}
+  .gen-opts input{width:auto}
   textarea{resize:vertical; min-height:60px}
   .row{display:flex; gap:8px}
   .row > *{flex:1}
@@ -112,6 +121,11 @@
       <span>🛡️</span>
       <span><b>100% offline.</b> Everything is encrypted and stored only on this device. No password ever leaves this app or reaches any server.</span>
     </div>
+
+    <div style="text-align:center; margin-top:14px">
+      <button class="ghost" id="restoreBtn" type="button">⬆️ Restore from backup file</button>
+      <input id="importFile" type="file" accept="application/json,.json" style="display:none" />
+    </div>
   </section>
 
   <!-- ================= MAIN APP ================= -->
@@ -131,6 +145,18 @@
       <div class="field">
         <label for="label">Name (e.g. Instagram, Email)</label>
         <input id="label" type="text" placeholder="What is this password for?" />
+      </div>
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category">
+          <option value="Social">Social</option>
+          <option value="Bank">Bank</option>
+          <option value="Cards">Cards</option>
+          <option value="UPI">UPI / Wallet</option>
+          <option value="Email">Email</option>
+          <option value="Notes">Notes</option>
+          <option value="Other" selected>Other</option>
+        </select>
       </div>
       <div class="field">
         <label for="username">Username / email (optional)</label>
@@ -157,6 +183,10 @@
         <span class="hint" id="genLenVal" style="margin:0">16</span>
         <button class="ghost" id="genBtn" type="button">🎲 Make one</button>
       </div>
+      <div class="gen-opts">
+        <label><input type="checkbox" id="genNum" checked /> Numbers</label>
+        <label><input type="checkbox" id="genSym" checked /> Symbols</label>
+      </div>
 
       <div style="height:12px"></div>
       <button id="saveBtn" class="primary">Save to vault</button>
@@ -167,12 +197,15 @@
     <div class="card">
       <h2>My vault (<span id="count">0</span>)</h2>
       <input id="search" class="search" type="text" placeholder="Search…" />
+      <div class="chips" id="chips"></div>
       <div id="vaultList"></div>
+      <button class="ghost" id="exportBtn" type="button" style="width:100%; margin-top:12px">⬇️ Export encrypted backup</button>
+      <p class="hint">Your backup is an encrypted file — only your master password can open it. Save it somewhere safe (e.g. Google Drive) so you can restore it if you lose or reinstall the app.</p>
     </div>
 
     <footer>
       SecureVault · your data is encrypted with AES-256 and stays on this device.<br/>
-      Built by Usman Faraz
+      Built by Faraz Labs · Usman Faraz
     </footer>
   </section>
 </div>
@@ -314,8 +347,10 @@ function renderStrength(pw){
 }
 
 /* ---------- password generator ---------- */
-function generate(len){
-  const sets = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+';
+function generate(len, useNum, useSym){
+  let sets = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+  if(useNum) sets += '23456789';
+  if(useSym) sets += '!@#$%^&*-_=+';
   let out=''; const arr = rand(len);
   for(let i=0;i<len;i++) out += sets[arr[i] % sets.length];
   return out;
@@ -324,10 +359,24 @@ function generate(len){
 /* =========================================================================
    Vault UI
    ========================================================================= */
+const CATS = ['All','Social','Bank','Cards','UPI','Email','Notes','Other'];
+let activeCat = 'All';
+
+function renderChips(){
+  const present = new Set(vault.map(e=>e.category||'Other'));
+  const cats = CATS.filter(c => c==='All' || present.has(c));
+  $('#chips').innerHTML = cats.map(c =>
+    `<span class="chip ${c===activeCat?'active':''}" data-cat="${c}">${c}</span>`).join('');
+}
+
 function renderVault(filter=''){
   const list = $('#vaultList'); const f = filter.trim().toLowerCase();
-  const items = vault.filter(e => !f || (e.label+ ' ' +(e.username||'')).toLowerCase().includes(f));
   $('#count').textContent = vault.length;
+  renderChips();
+  let items = vault.filter(e => !f || (e.label+' '+(e.username||'')+' '+(e.category||'')).toLowerCase().includes(f));
+  if(activeCat !== 'All') items = items.filter(e => (e.category||'Other') === activeCat);
+  // pinned first, then newest
+  items = items.slice().sort((a,b)=> (b.pinned?1:0)-(a.pinned?1:0) || (b.ts||0)-(a.ts||0));
   if(!items.length){
     list.innerHTML = `<div class="empty">${vault.length? 'No match.' : 'Nothing saved yet. Check a password above and tap “Save to vault”.'}</div>`;
     return;
@@ -335,10 +384,11 @@ function renderVault(filter=''){
   list.innerHTML = items.map(e => `
     <div class="entry" data-id="${e.id}">
       <div class="top">
-        <div>
-          <div class="title">${esc(e.label)}</div>
+        <div style="flex:1">
+          <div class="title">${esc(e.label)}<span class="tag">${esc(e.category||'Other')}</span></div>
           ${e.username? `<div class="user">${esc(e.username)}</div>`:''}
         </div>
+        <button class="star" data-act="pin" data-id="${e.id}" title="Pin">${e.pinned?'⭐':'☆'}</button>
       </div>
       <div class="pw"><span data-pw="${e.id}">••••••••</span></div>
       <div class="acts">
@@ -434,8 +484,17 @@ document.addEventListener('click', async (e)=>{
   if(t.id==='unlockBtn'){ handleUnlock(); return; }
   if(t.id==='lockNow'){ lock(); return; }
   if(t.id==='genBtn'){
-    const g = generate(parseInt($('#genLen').value,10));
+    const g = generate(parseInt($('#genLen').value,10), $('#genNum').checked, $('#genSym').checked);
     $('#pw').value = g; $('#pw').type='text'; renderStrength(g); return;
+  }
+  if(t.classList.contains('chip')){
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    t.classList.add('active'); activeCat = t.dataset.cat; renderVault($('#search').value); return;
+  }
+  if(t.dataset.act==='pin'){
+    const en = vault.find(x=>x.id===t.dataset.id);
+    if(en){ en.pinned = !en.pinned; await saveVault(); renderVault($('#search').value); }
+    return;
   }
   if(t.id==='saveBtn'){ await saveEntry(); return; }
 
@@ -449,8 +508,8 @@ document.addEventListener('click', async (e)=>{
     else { span.textContent=entry.password; span.dataset.shown='1'; t.textContent='🙈 Hide'; }
   }
   if(act==='copy'){
-    try{ await navigator.clipboard.writeText(entry.password); toast('Copied ✔ (clears in 20s)');
-      setTimeout(()=>navigator.clipboard.writeText('').catch(()=>{}), 20000);
+    try{ await navigator.clipboard.writeText(entry.password); toast('Copied ✔ (clears in 30s)');
+      setTimeout(()=>navigator.clipboard.writeText('').catch(()=>{}), 30000);
     }catch(err){ toast('Copy not allowed'); }
   }
   if(act==='del'){
@@ -466,9 +525,10 @@ async function saveEntry(){
   const password = $('#pw').value;
   if(!label){ toast('Add a name first'); $('#label').focus(); return; }
   if(!password){ toast('Enter a password'); $('#pw').focus(); return; }
-  vault.unshift({ id: b64(rand(8)), label, username, password, ts: Date.now() });
+  const category = $('#category').value;
+  vault.unshift({ id: b64(rand(8)), label, username, password, category, pinned:false, ts: Date.now() });
   await saveVault();
-  $('#label').value=''; $('#username').value=''; $('#pw').value=''; $('#pw').type='password';
+  $('#label').value=''; $('#username').value=''; $('#pw').value=''; $('#pw').type='password'; $('#category').value='Other';
   renderStrength(''); renderVault($('#search').value);
   toast('Saved 🔐');
 }
@@ -478,6 +538,44 @@ $('#genLen').addEventListener('input', e=>$('#genLenVal').textContent=e.target.v
 $('#search').addEventListener('input', e=>renderVault(e.target.value));
 $('#mp').addEventListener('keydown', e=>{ if(e.key==='Enter') handleUnlock(); });
 $('#mp2').addEventListener('keydown', e=>{ if(e.key==='Enter') handleUnlock(); });
+
+/* ---------- encrypted backup: export / restore ----------
+   The backup file is the SAME encrypted blob we keep in localStorage:
+   it holds the salt, the verification token and the AES-256-GCM ciphertext.
+   Without the master password the file is useless, so it is safe to store
+   in Google Drive, email, etc. Nothing is ever sent anywhere by the app. */
+function exportBackup(){
+  const raw = localStorage.getItem(LS_KEY);
+  if(!raw){ toast('Nothing to export yet'); return; }
+  const blob = new Blob([raw], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'securevault-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast('Encrypted backup saved 🔐');
+}
+function restoreBackup(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const obj = JSON.parse(reader.result);
+      if(!obj || !obj.kdf || !obj.check){ throw new Error('bad'); }        // sanity check
+      if(readStore() && !confirm('This will replace the vault on this device with the backup. Continue?')) return;
+      localStorage.setItem(LS_KEY, reader.result);
+      toast('Backup restored — unlock with its master password');
+      lock();
+    }catch(e){ toast('Not a valid SecureVault backup file'); }
+  };
+  reader.readAsText(file);
+}
+document.getElementById('exportBtn').addEventListener('click', exportBackup);
+document.getElementById('restoreBtn').addEventListener('click', ()=>document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', e=>{
+  if(e.target.files && e.target.files[0]) restoreBackup(e.target.files[0]);
+  e.target.value='';
+});
 
 /* boot */
 lock();
