@@ -1,7 +1,7 @@
 /* SecureVault service worker — caches the app shell so it works fully offline.
    No user data is ever cached or transmitted; only the app's own files. */
 // Bump this whenever the app files change so old caches are cleared.
-const CACHE = 'securevault-v2';
+const CACHE = 'securevault-v3';
 const ASSETS = [
   './',
   './index.html',
