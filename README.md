@@ -41,6 +41,18 @@ python3 -m http.server 8080
 - Strength scoring uses Shannon entropy, which can over-rate dictionary-based passwords (e.g. `Word@2024`). A future version could integrate a large wordlist (like zxcvbn) and a Have I Been Pwned k-anonymity breach check.
 - PBKDF2 is used because it's built into the Web Crypto API; Argon2id would be stronger and is a planned upgrade.
 
+## Updates and offline use
+
+The app works offline after the first visit. When you are online it always
+loads the newest version; the offline copy is only used when there is no
+network. Developers: bump `CACHE` in `service-worker.js` whenever the app
+files change.
+
+## Reporting a vulnerability
+
+Please see [SECURITY.md](SECURITY.md). Report issues privately by email,
+not as a public issue.
+
 ## License
 
 MIT © Usman Faraz
